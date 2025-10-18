@@ -8,9 +8,10 @@ load_dotenv()
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
-from langchain.chains import RetrievalQA
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
 
 def clean_text(raw_text):
     return re.sub(r'[^\w\s.,;:!?()-]', '', raw_text)
@@ -31,11 +32,14 @@ def create_faiss_db(text):
     db = FAISS.from_documents(docs, embeddings)
     return db
 
+def format_docs(docs):
+    return "\n\n".join(doc.page_content for doc in docs)
+
 def create_qa_chain(db):
     retriever = db.as_retriever(search_kwargs={"k": 5})
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
 
-    prompt_template = """You are an expert assistant.
+    prompt = ChatPromptTemplate.from_template("""You are an expert assistant.
 Use the following context to answer the question concisely.
 If you don't know, just say you don't know.
 
@@ -45,19 +49,19 @@ Context:
 Question:
 {question}
 
-Answer:"""
+Answer:""")
 
-    prompt = PromptTemplate(
-        input_variables=["context", "question"],
-        template=prompt_template
+    # Create chain using LCEL (LangChain Expression Language) - no need for langchain.chains
+    qa_chain = (
+        {
+            "context": retriever | format_docs,
+            "question": RunnablePassthrough()
+        }
+        | prompt
+        | llm
+        | StrOutputParser()
     )
-
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=llm,
-        retriever=retriever,
-        chain_type="stuff",
-        chain_type_kwargs={"prompt": prompt}
-    )
+    
     return qa_chain
 
 st.set_page_config(page_title="PDF Q&A App", layout="wide")
@@ -74,6 +78,6 @@ if uploaded_file is not None:
     question = st.text_input("Ask a question about your PDF:")
     if question:
         with st.spinner("Getting answer..."):
-            result = qa_chain.run(question)
+            result = qa_chain.invoke(question)
             st.markdown("### 💬 Answer:")
             st.write(result)
