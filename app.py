@@ -5,13 +5,13 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
-from langchain_text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.chat_models import ChatOpenAI
-from langchain.prompts import PromptTemplate
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.prompts import PromptTemplate
+from langchain_core.documents import Document
 from langchain.chains import RetrievalQA
-from langchain.schema import Document
+
 def clean_text(raw_text):
     return re.sub(r'[^\w\s.,;:!?()-]', '', raw_text)
 
